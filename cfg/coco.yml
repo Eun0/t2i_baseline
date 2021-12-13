@@ -1,7 +1,7 @@
 MODEL_NAME: 'coco'
 
 DATASET_NAME: 'coco'
-DATA_DIR: '../data/coco'
+DATA_DIR: 'data/coco'
 GPUS: [0]
 WORKERS: 4
 
@@ -31,4 +31,4 @@ TEXT:
     ENCODER: DAMSM
     EMBEDDING_DIM: 256
     CAPTIONS_PER_IMAGE: 5
-    ENCODER_NAME: '../DAMSMencoders/coco/text_encoder100.pth'
+    ENCODER_NAME: 'data/DAMSMencoders/coco/text_encoder100.pth'
