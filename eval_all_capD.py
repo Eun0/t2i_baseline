@@ -61,7 +61,7 @@ def sampling(text_encoder, image_encoder, netG, batch_size, dataset, num_samples
     print(f'model_list : {model_list}')
     save_dir = model_dir.split("exps")[-1]
     
-    log_dir = f'../logs/{save_dir}'
+    log_dir = f'logs/{save_dir}'
 
     results = {'f_epoch':0, 'fid':1000}
 
@@ -74,7 +74,7 @@ def sampling(text_encoder, image_encoder, netG, batch_size, dataset, num_samples
 
         netG.eval()
         netG.cuda()
-        result_dir = f'../test/{save_dir}'
+        result_dir = f'/test/{save_dir}'
         mkdir_p(result_dir)
 
         folder = f'{result_dir}'
