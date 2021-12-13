@@ -105,7 +105,7 @@ class RNN_ENCODER(nn.Module):
         #
         # Returns: a PackedSequence object
         cap_lens = cap_lens.data.tolist()
-        emb = pack_padded_sequence(emb, cap_lens, batch_first=True,enforce_sorted=False)
+        emb = pack_padded_sequence(emb, cap_lens, batch_first=True)
         # #hidden and memory (num_layers * num_directions, batch, hidden_size):
         # tensor containing the initial hidden state for each element in batch.
         # #output (batch, seq_len, hidden_size * num_directions)

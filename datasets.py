@@ -120,8 +120,8 @@ class TextDataset(data.Dataset):
         sent_ix = random.randint(0, self.embeddings_num)
         new_sent_ix = index * self.embeddings_num + sent_ix
         
-        cap,cap_len = self.get_caption(new_sent_ix)
-        return key,imgs,cap,cap_len,self.class_id[index]
+        cap, cap_len = self.get_caption(new_sent_ix)
+        return imgs, cap, cap_len, self.class_id[index], key
 
     def __len__(self):
         return len(self.filenames)
@@ -146,27 +146,47 @@ class TextDataset(data.Dataset):
             class_id = np.arange(total_num)
         return class_id
 
-    def get_caption(self,sent_ix):
-        cap = self.captions[sent_ix]
-        cap_len = len(cap) if len(cap) < cfg.TEXT.WORDS_NUM else cfg.TEXT.WORDS_NUM
-        cap = cap + [0]*(cfg.TEXT.WORDS_NUM - cap_len) if cap_len <cfg.TEXT.WORDS_NUM else cap[:cfg.TEXT.WORDS_NUM]
-        return cap,cap_len
+    def get_caption(self, sent_ix):
+        # a list of indices for a sentence
+        sent_caption = np.asarray(self.captions[sent_ix]).astype('int64')
+        if (sent_caption == 0).sum() > 0:
+            print('ERROR: do not need END (0) token', sent_caption)
+        num_words = len(sent_caption)
+        # pad with 0s (i.e., '<end>')
+        x = np.zeros((cfg.TEXT.WORDS_NUM, 1), dtype='int64')
+        x_len = num_words
+        if num_words <= cfg.TEXT.WORDS_NUM:
+            x[:num_words, 0] = sent_caption
+        else:
+            ix = list(np.arange(num_words))  # 1, 2, 3,..., maxNum
+            np.random.shuffle(ix)
+            ix = ix[:cfg.TEXT.WORDS_NUM]
+            ix = np.sort(ix)
+            x[:, 0] = sent_caption[ix]
+            x_len = cfg.TEXT.WORDS_NUM
+        return x, x_len
     
     def get_mis_caption(self,cls_id):
+        mis_match_captions_t = []
         mis_match_captions = torch.zeros(99, cfg.TEXT.WORDS_NUM)
         mis_match_captions_len = torch.zeros(99)
         i = 0
-        while i < 99:
+        while len(mis_match_captions_t) < 99:
             idx = random.randint(0, self.number_example)
             if cls_id == self.class_id[idx]:
                 continue
             sent_ix = random.randint(0, self.embeddings_num)
             new_sent_ix = idx * self.embeddings_num + sent_ix
             caps_t, cap_len_t = self.get_caption(new_sent_ix)
-            mis_match_captions[i,:] = torch.tensor(caps_t).squeeze()
+            mis_match_captions_t.append(torch.from_numpy(caps_t).squeeze())
             mis_match_captions_len[i] = cap_len_t
             i = i +1
-        return mis_match_captions.type(torch.LongTensor).cuda(),mis_match_captions_len.type(torch.LongTensor).cuda()
+        sorted_cap_lens, sorted_cap_indices = torch.sort(mis_match_captions_len, 0, True)
+        #import ipdb
+        #ipdb.set_trace()
+        for i in range(99):
+            mis_match_captions[i,:] = mis_match_captions_t[sorted_cap_indices[i]]
+        return mis_match_captions.type(torch.LongTensor).cuda(), sorted_cap_lens.type(torch.LongTensor).cuda()
 
 
 
