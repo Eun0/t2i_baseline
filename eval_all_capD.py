@@ -75,7 +75,7 @@ def sampling(text_encoder, image_encoder, netG, batch_size, dataset, num_samples
 
         netG.eval()
         netG.cuda()
-        result_dir = f'/test/{save_dir}'
+        result_dir = f'test/{save_dir}'
         mkdir_p(result_dir)
 
         folder = f'{result_dir}'
