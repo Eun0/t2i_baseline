@@ -35,7 +35,7 @@ multiprocessing.set_start_method('spawn', True)
 UPDATE_INTERVAL = 200
 def parse_args():
     parser = argparse.ArgumentParser(description='Train a DAMSM network')
-    parser.add_argument("--cfg", type=str, default="cfg/coco.yml")
+    parser.add_argument("--cfg", dest="cfg_file", type=str, default="cfg/coco.yml")
     parser.add_argument('--gpu', dest='gpu_id', type=int, default=0)
     parser.add_argument('--manualSeed', type=int, help='manual seed',default=100)
     parser.add_argument('--num_samples',type=int,default=30000)
@@ -198,7 +198,7 @@ if __name__ == "__main__":
     assert args.num_samples % args.batch_size == 0
     if args.cfg_file is not None:
         cfg_from_file(args.cfg_file)
-        
+
     if args.gpu_id == -1:
         cfg.CUDA = False
     else:
