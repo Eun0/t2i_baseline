@@ -13,7 +13,6 @@ SIM_WEIGHT: 1
 
 loss: 'hinge'
 
-
 TREE:
     BRANCH_NUM: 1
     BASE_SIZE: 256
@@ -22,7 +21,7 @@ TRAIN:
     NF: 32 # default 64
     BATCH_SIZE: 24
     MAX_EPOCH: 121
-    NET_G: '../test'
+    NET_G: 'models/netG_120.pth'
 
 EVAL:
     BATCH_SIZE: 57
