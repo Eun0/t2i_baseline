@@ -98,7 +98,7 @@ def sampling(text_encoder, image_encoder, netG, batch_size, dataset, num_samples
                 break
 
             if cfg.TEXT.ENCODER=='DAMSM':
-                keys,imgs,captions,cap_lens,class_ids = data
+                imgs,captions,cap_lens,class_ids,keys = prepare_data(data)
                 captions,cap_lens = torch.stack(captions,dim=1).cuda(),cap_lens.cuda()
                 hidden = text_encoder.init_hidden(captions.size(0))
                 words_embs, sent_embs = text_encoder(captions, cap_lens, hidden)
