@@ -28,6 +28,8 @@ from collections import OrderedDict
 from eval.fid_score import calculate_fid_given_paths
 import clip
 
+from dmgan import G_NET as DM_GAN
+from attngan import G_NET as ATTN_GAN
 
 import multiprocessing
 multiprocessing.set_start_method('spawn', True)
@@ -35,12 +37,11 @@ multiprocessing.set_start_method('spawn', True)
 UPDATE_INTERVAL = 200
 def parse_args():
     parser = argparse.ArgumentParser(description='Train a DAMSM network')
-    parser.add_argument("--cfg", dest="cfg_file", type=str, default="cfg/coco_df.yml")
+    parser.add_argument("--cfg", dest="cfg_file", type=str, default="cfg/coco_cap.yml")
     parser.add_argument('--gpu', dest='gpu_id', type=int, default=0)
-    parser.add_argument('--manualSeed', type=int, help='manual seed',default=100)
+    parser.add_argument('--manualSeed', type=int, help='manual seed',default=500)
     parser.add_argument('--num_samples',type=int,default=30000)
     parser.add_argument('--metric',type=str,default='both')
-    parser.add_argument('--model_dir',type=str,default='/work/capD/exps/df256_capGD')
     parser.add_argument('--img_size',type=int,default=256)
     parser.add_argument('--batch_size', type=int, default=24)
     args = parser.parse_args()
@@ -51,16 +52,16 @@ def seed_worker(worker_id):
     np.random.seed(worker_seed)
     random.seed(worker_seed)
 
-def sampling(netG, batch_size, dataset, num_samples, model_dir):
+def sampling(netG, batch_size, dataset, num_samples, model_dir, model_name):
 
     #print(model_dir)
     #model_list = sorted(glob.glob(f'{model_dir}/*.pth'), key=lambda x: int(''.join(filter(str.isdigit, x))))[-1:]
     #model_list = f"{model_dir}/checkpoint_"
-    model_list = [f"/home/eun0/Baselines/DF-GAN/models/coco/netG_120.pth"] 
+    model_list = [model_dir] 
     print(f'model_list : {model_list}')
-    save_dir = model_dir.split("exps")[-1]
+    save_dir = model_name
     
-    log_dir = f'../logs/{save_dir}'
+    log_dir = f'logs/{save_dir}'
 
     results = {'r_epoch':0,'R_mean':0,'f_epoch':0,'fid':1000}
     ixtoword = dataset.ixtoword
@@ -74,13 +75,18 @@ def sampling(netG, batch_size, dataset, num_samples, model_dir):
     text_encoder.eval()
     text_encoder.cuda()
 
+    MEAN = torch.tensor([0.48145466, 0.4578275, 0.40821073]).cuda()
+    STD = torch.tensor([0.26862954, 0.26130258, 0.27577711]).cuda()
     for model in model_list:
         checkpoint = torch.load(model, map_location="cpu")
-        netG.load_state_dict(checkpoint)
+        if model_name == "cap":
+            netG.load_state_dict(checkpoint["netG_ema"])
+        else:
+            netG.load_state_dict(checkpoint)
     
         netG.eval()
         netG.cuda()
-        result_dir = f'../test/{save_dir}'
+        result_dir = f'test/{save_dir}'
         mkdir_p(result_dir)
 
         folder = f'{result_dir}'
@@ -92,11 +98,11 @@ def sampling(netG, batch_size, dataset, num_samples, model_dir):
         cont = True
         
         g = torch.Generator()
-        g.manual_seed(100)
+        g.manual_seed(args.manualSeed)
         dataloader = torch.utils.data.DataLoader(
         dataset, batch_size=batch_size, drop_last=True,
         #shuffle=False, num_workers=1)
-        shuffle=False, generator=g, worker_init_fn=seed_worker, num_workers=1)
+        shuffle=True, generator=g, worker_init_fn=seed_worker, num_workers=1)
 
 
         for data in dataloader:
@@ -110,37 +116,43 @@ def sampling(netG, batch_size, dataset, num_samples, model_dir):
 
             noise = truncated_z_sample(sent_embs.size(0), 100,seed=100)
             noise = torch.from_numpy(noise).float().cuda()
-            if "coco_df" in args.cfg_file:
+            if model_name == "df":
                 fake_imgs = netG(noise, sent_embs)
-            elif "coco_cap" in args.cfg_file:
+            elif model_name == "cap":
                 fake_imgs = netG(noise, sent_embs)
-            elif "coco_attn" in args.cfg_file:
-                raise NotImplementedError
-            elif "coco_dm" in args.cfg_file:
-                raise NotImplementedError
+            elif model_name == "attn" :
+                #mask = (captions == 0)
+                mask = (captions == 0)[:, :cap_lens[0]]
+                fake_imgs, attn_maps, _, _ = netG(noise, sent_embs, words_embs, mask)
+                fake_imgs = fake_imgs[-1]
+            elif model_name == "dm":
+                #mask = (captions == 0)
+                mask = (captions == 0)[:, :cap_lens[0]]
+                fake_imgs, attn_maps, _, _ = netG(noise, sent_embs, words_embs, mask, cap_lens)
+                fake_imgs = fake_imgs[-1]
         
             clip_images = []
             clip_texts = []
+            sents = []
+
+            clip_images = (fake_imgs+1.)/2.
+            clip_images= torch.nn.functional.interpolate(clip_images, size=224, mode="bicubic")
+            clip_images.sub_(MEAN[None, :, None, None]).div_(STD[None, :, None, None])
+
 
             for j in range(sent_embs.size(0)):
-                im = fake_imgs[j].data.cpu().numpy()
-                im = (im + 1.0) * 127.5
-                im = im.astype(np.uint8)
-                im = np.transpose(im, (1, 2, 0))
-                im = Image.fromarray(im)
+                #im = fake_imgs[j].data.cpu().numpy()
+                #im = (im + 1.0) * 127.5
+                #im = im.astype(np.uint8)
+                #im = np.transpose(im, (1, 2, 0))
+                #im = Image.fromarray(im)
                 sent = ' '.join([ixtoword[ix.item()] for ix in captions[j] if ix.item()!=0])
+                sents.append(sent)
                 #fullpath = f'{folder}/{sent}_{keys[j]}.png'
                 #im.save(fullpath)
-                #image = preprocess(im).unsqueeze(0).cuda()
-                #real_im = imgs[0][j].data.cpu().numpy()
-                #real_im = (real_im + 1.0) * 127.5
-                #real_im = real_im.astype(np.uint8)
-                #real_im = np.transpose(real_im, (1,2,0))
-                #real_im = Image.fromarray(real_im)
-                #image = preprocess(real_im).unsqueeze(0).cuda()
-                image = preprocess(im).unsqueeze(0).cuda()
+                #im = (fake_imgs[j] * 127.5 + 128).clamp(0,255).to(torch.uint8)
                 text = clip.tokenize(sent).cuda()
-                clip_images.append(image)
+                #clip_images.append(im)
                 clip_texts.append(text)
                 cnt += 1
 
@@ -150,16 +162,13 @@ def sampling(netG, batch_size, dataset, num_samples, model_dir):
             s_r = ''
             s_fid = ''
 
-            #img_features = torch.tensor(img_features)
-            #text_features = torch.tensor(text_features)
-
             for i in range(batch_size):
-                mis_captions, mis_captions_len = dataset.get_mis_caption(class_ids[i])
+                mis_captions, mis_captions_len = dataset.get_mis_caption(class_ids[i], captions[i])
                 mis_captions = mis_captions.tolist()
                 mis_captions = [' '.join([ixtoword[ix] for ix in mis_cap if ix != 0]) for mis_cap in mis_captions]
-                mis_captions = clip.tokenize(mis_captions).cuda()
-                text = torch.cat((clip_texts[i], mis_captions))
-                logits_per_image, _ = encoder(clip_images[i], text)
+                mis_clip = clip.tokenize(mis_captions).cuda()
+                text = torch.cat((clip_texts[i], mis_clip))
+                logits_per_image, _ = encoder(clip_images[i].view(1,3,224,224), text)
                 scores0 = logits_per_image.softmax(dim=-1)
                 if torch.argmax(scores0) == 0:
                     R[R_count] = 1
@@ -234,6 +243,9 @@ if __name__ == "__main__":
     batch_size = args.batch_size 
     image_transform = transforms.Compose([
             transforms.Resize((imsize,imsize)),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=(0.5,0.5,0.5),std=(0.5,0.5,0.5))
+
         ])
     print(f'Generate {imsize}x{imsize} images')
     dataset = TextDataset(cfg.DATA_DIR, 'test',
@@ -246,12 +258,16 @@ if __name__ == "__main__":
     #netG = DF_GEN(visual_feature_size=32, noise_size=100, img_size=args.img_size, cond_size=256)
     if "coco_df" in args.cfg_file:
         netG = NetG(32, 100, cfg.TEXT.EMBEDDING_DIM).cuda()
+        model_name = "df"
     elif "coco_cap" in args.cfg_file:
         netG = DF_GEN(visual_feature_size=32, noise_size=100, img_size=args.img_size, cond_size=256)
+        model_name = "cap"
     elif "coco_attn" in args.cfg_file:
-        raise NotImplementedError
+        netG = ATTN_GAN()
+        model_name = "attn"
     elif "coco_dm" in args.cfg_file:
-        raise NotImplementedError
+        netG = DM_GAN()
+        model_name = "dm"
     
     #text_encoder = RNN_ENCODER(dataset.n_words, nhidden=256)
     #state_dict = torch.load(cfg.TEXT.ENCODER_NAME, map_location=lambda storage, loc: storage)
@@ -265,7 +281,7 @@ if __name__ == "__main__":
     #image_encoder.cuda()
 
     with torch.no_grad(): 
-        sampling(netG, batch_size, dataset, args.num_samples, cfg.TRAIN.NET_G)  # generate images for the whole valid dataset
+        sampling(netG, batch_size, dataset, args.num_samples, cfg.TRAIN.NET_G, model_name)  # generate images for the whole valid dataset
         
 
 

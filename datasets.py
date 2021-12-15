@@ -56,7 +56,7 @@ def prepare_data(data):
 
 
 def get_imgs(img_path, imsize, bbox=None,
-             transform=None, normalize=None):
+             transform=None):
     img = Image.open(img_path).convert('RGB')
     width, height = img.size
     if bbox is not None:
@@ -73,7 +73,7 @@ def get_imgs(img_path, imsize, bbox=None,
         img = transform(img)
         
     ret = []
-    ret.append(normalize(img))
+    ret.append(img)
     #if cfg.GAN.B_DCGAN:
     '''
     for i in range(cfg.TREE.BRANCH_NUM):
@@ -90,15 +90,15 @@ class TextDataset(data.Dataset):
                  base_size=64,
                  transform=None):
         self.transform = transform
-        self.norm = transforms.Compose([
-            transforms.ToTensor(),
-            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+        #self.norm = transforms.Compose([
+        #    transforms.ToTensor(),
+        #    transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
         self.embeddings_num = 5 #if 'coco' in data_dir else 10
         
-        self.imsize = []
-        for i in range(cfg.TREE.BRANCH_NUM):
-            self.imsize.append(base_size)
-            base_size = base_size * 2
+        self.imsize = [base_size]
+        # for i in range(cfg.TREE.BRANCH_NUM):
+        #     self.imsize.append(base_size)
+        #     base_size = base_size * 2
 
         self.data = []
         #self.split = split
@@ -115,7 +115,7 @@ class TextDataset(data.Dataset):
         #
         img_name = '%s/images/%s.jpg' % (data_dir, key) if 'coco' in self.data_dir else '%s/images/%s' % (data_dir, key)
         imgs = get_imgs(img_name, self.imsize,
-                        None, self.transform, normalize=self.norm)
+                        None, self.transform)#normalize=self.norm)
         # random select a sentence
         sent_ix = random.randint(0, self.embeddings_num)
         new_sent_ix = index * self.embeddings_num + sent_ix
@@ -166,7 +166,7 @@ class TextDataset(data.Dataset):
             x_len = cfg.TEXT.WORDS_NUM
         return x, x_len
     
-    def get_mis_caption(self,cls_id):
+    def get_mis_caption(self,cls_id, caption):
         mis_match_captions_t = []
         mis_match_captions = torch.zeros(99, cfg.TEXT.WORDS_NUM)
         mis_match_captions_len = torch.zeros(99)
@@ -178,6 +178,16 @@ class TextDataset(data.Dataset):
             sent_ix = random.randint(0, self.embeddings_num)
             new_sent_ix = idx * self.embeddings_num + sent_ix
             caps_t, cap_len_t = self.get_caption(new_sent_ix)
+
+            duplicate = set(caption.tolist()) & set(caps_t.flatten().tolist())
+            duplicate.discard(0)
+            duplicate.discard(23046)
+            duplicate.discard(26444)
+            duplicate.discard(8707)
+
+            if len(duplicate) >= 2:
+                print("log", duplicate)
+                continue
             mis_match_captions_t.append(torch.from_numpy(caps_t).squeeze())
             mis_match_captions_len[i] = cap_len_t
             i = i +1

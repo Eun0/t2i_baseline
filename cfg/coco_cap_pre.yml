@@ -21,7 +21,7 @@ TRAIN:
     NF: 32 # default 64
     BATCH_SIZE: 24
     MAX_EPOCH: 121
-    NET_G: 'models/256_cond_cap/checkpoint_413880.pth'
+    NET_G: 'models/256_cond_01pre_cap/checkpoint_413880.pth'
 
 EVAL:
     BATCH_SIZE: 57

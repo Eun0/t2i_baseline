@@ -14,17 +14,23 @@ SIM_WEIGHT: 1
 loss: 'hinge'
 
 TREE:
-    BRANCH_NUM: 1
-    BASE_SIZE: 256
+    BRANCH_NUM: 3 
+    BASE_SIZE: 64 
 
 TRAIN:
     NF: 32 # default 64
     BATCH_SIZE: 24
     MAX_EPOCH: 121
-    NET_G: 'models/256_cond_cap/checkpoint_413880.pth'
+    NET_G: 'models/coco_AttnGAN2.pth'
+
+GAN:
+    DF_DIM: 96
+    GF_DIM: 48
+    Z_DIM: 100
+    R_NUM: 3
 
 EVAL:
-    BATCH_SIZE: 57
+    BATCH_SIZE: 24
 
 TEXT:
     ENCODER: DAMSM
